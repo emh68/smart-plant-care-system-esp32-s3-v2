@@ -8,16 +8,14 @@
 #include <time.h>
 #include "PCF85063TP.h"
 #include "secrets.h"
-#include <Adafruit_AS7341.h>
+#include "LightSensor.h"
+#include "TempHumSensor.h"
 
 // --------------------
 // Hardware / Libraries
 // --------------------
 
-// Grove SHT35
-SHT35 sensor(6);
-
-// Grove OLED SSD1315: use the SSD1315 constructor and set address explicitly
+// Grove OLED SSD1315: uses the SSD1315 constructor and sets address explicitly
 U8G2_SSD1315_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 // U8G2_SSD1315_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, /* clock=*/6, /* data=*/5, /* reset=*/U8X8_PIN_NONE);
 static constexpr uint8_t OLED_ADDR_7BIT = 0x3C;
@@ -30,8 +28,12 @@ static constexpr uint8_t RTC_ADDR_7BIT = 0x51;
 WiFiUDP udp;
 NTPClient timeClient(udp, "pool.ntp.org", 0, 3600000);
 
-// AS7341 10-channel light sensor
-Adafruit_AS7341 as7341;
+// --------------------
+// Global Sensor Objects
+// --------------------
+// Grove SHT35
+TempHumSensor envSensor(6);
+LightSensor spectralSensor;
 
 // --------------------
 // Time configuration
@@ -162,22 +164,10 @@ void disconnectWiFi()
   WiFi.mode(WIFI_OFF);
 }
 
-const uint8_t spectrumChannels[] = {
-    AS7341_CHANNEL_415nm_F1,
-    AS7341_CHANNEL_445nm_F2,
-    AS7341_CHANNEL_480nm_F3,
-    AS7341_CHANNEL_515nm_F4,
-    AS7341_CHANNEL_555nm_F5,
-    AS7341_CHANNEL_590nm_F6,
-    AS7341_CHANNEL_630nm_F7,
-    AS7341_CHANNEL_680nm_F8};
-
 const char *channelLabels[] = {
     "F1-415nm", "F2-445nm", "F3-480nm", "F4-515nm",
     "F5-555nm", "F6-590nm", "F7-630nm", "F8-680nm",
     "Clear", "NIR"};
-
-uint16_t readings[10];
 
 // --------------------
 // Setup
@@ -200,10 +190,10 @@ void setup()
   u8g2.sendBuffer();
 
   // Sensor init
-  if (sensor.init())
-    Serial.println("SHT35 init failed!!!");
+  if (!envSensor.init())
+    Serial.println("SHT35 init failed");
   else
-    Serial.println("SHT35 Online.");
+    Serial.println("SHT35 Online");
 
   // Detect RTC presence before using it
   rtcPresent = i2cDevicePresent(RTC_ADDR_7BIT);
@@ -260,17 +250,14 @@ void setup()
       Serial.println("No valid time source yet (will show last-known/blank time fields).");
   }
 
-  if (!as7341.begin())
+  if (!spectralSensor.begin())
   {
     Serial.println("Could not find AS7341");
-    while (1)
-    {
-      delay(10);
-    }
   }
-  as7341.setATIME(100);
-  as7341.setASTEP(999);
-  as7341.setGain(AS7341_GAIN_256X);
+  else
+  {
+    Serial.println("AS7341 Online.");
+  }
 }
 
 // --------------------
@@ -278,6 +265,8 @@ void setup()
 // --------------------
 void loop()
 {
+  // Update sensor cache at start of loop for consistency
+  envSensor.update();
   // Prefer system time if valid (NTP-set clock continues even with Wi-Fi off)
   bool timeOk = false;
 
@@ -324,25 +313,20 @@ void loop()
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_ncenB10_tr);
 
-  float temp, hum;
-  if (NO_ERROR != sensor.read_meas_data_single_shot(HIGH_REP_WITH_STRCH, &temp, &hum))
+  float currentTemp = envSensor.getTemp();
+  float currentHum = envSensor.getHum();
   {
     u8g2.setCursor(0, 12);
-    u8g2.print("Read temp failed!!");
   }
-  else
+
   {
     u8g2.setCursor(0, 12);
     u8g2.print("Temp: ");
-
+    u8g2.print(currentTemp);
     int tempX = u8g2.getCursorX();
-    u8g2.print((temp * 1.8) + 32);
-
     int afterNumX = u8g2.getCursorX();
-
     u8g2.print(" ");
     afterNumX = u8g2.getCursorX();
-
     u8g2.setFont(u8g2_font_unifont_t_symbols);
     u8g2.drawGlyph(afterNumX, 10, 0x00b0);
     // u8g2.setFont(u8g2_font_ncenB10_tr);
@@ -350,7 +334,7 @@ void loop()
     u8g2.print(" F");
     u8g2.setCursor(0, 27);
     u8g2.print("Hum: ");
-    u8g2.print(hum);
+    u8g2.print(currentHum);
     u8g2.print(" %");
     u8g2.setCursor(0, 42);
     u8g2.print("Date: ");
@@ -385,69 +369,17 @@ void loop()
     }
   }
 
-  if (as7341.readAllChannels())
-  {
-    for (int i = 0; i < 10; i++)
-    {
-      // Fill the array for the future graph
-      if (i < 8)
-      {
-        readings[i] = as7341.getChannel((as7341_color_channel_t)spectrumChannels[i]);
-      }
-      else if (i == 8)
-      {
-        readings[i] = as7341.getChannel(AS7341_CHANNEL_CLEAR);
-      }
-      else
-      {
-        readings[i] = as7341.getChannel(AS7341_CHANNEL_NIR);
-      }
+  spectralSensor.update();
 
-      // Print readable labels to Serial
-      // Serial.print(channelLabels[i]);
-      // Serial.print(": ");
-      // Serial.print(readings[i]);
-      // Serial.print(" | "); // Visual separator
-      Serial.print(">");
-      Serial.print(channelLabels[i]);
-      Serial.print(":");
-      Serial.println(readings[i]);
-    }
-    Serial.println(); // New line for the next set
+  for (int i = 0; i < 10; i++)
+  {
+    Serial.print(">");
+    Serial.print(channelLabels[i]);
+    Serial.print(":");
+    Serial.println(spectralSensor.getChannelValue(i));
   }
+  Serial.println();
 
   u8g2.sendBuffer();
   delay(1000);
-
-  // if (!as7341.readAllChannels())
-  // {
-  //   Serial.println("Error reading all channels!");
-  //   return;
-  // }
-
-  // // Print out the stored values for each channel
-  // Serial.print("F1 415nm : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_415nm_F1));
-  // Serial.print("F2 445nm : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_445nm_F2));
-  // Serial.print("F3 480nm : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_480nm_F3));
-  // Serial.print("F4 515nm : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_515nm_F4));
-  // Serial.print("F5 555nm : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_555nm_F5));
-  // Serial.print("F6 590nm : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_590nm_F6));
-  // Serial.print("F7 630nm : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_630nm_F7));
-  // Serial.print("F8 680nm : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_680nm_F8));
-
-  // Serial.print("Clear    : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_CLEAR));
-
-  // Serial.print("Near IR  : ");
-  // Serial.println(as7341.getChannel(AS7341_CHANNEL_NIR));
-
-  // Serial.println("");
 }
