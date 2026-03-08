@@ -6,7 +6,7 @@ The system monitors 10-channel spectral light, soil moisture, and environmental 
 
 [Software Demo Video](https://youtu.be/OUlXXAMPLh4)
 
-# Development Environment
+## Development Environment
 
 * **IDE:** Visual Studio Code with PlatformIO extension.
 * **Hardware:** Seeed Studio XIAO ESP32-S3 Microcontroller.
@@ -34,9 +34,9 @@ The system monitors 10-channel spectral light, soil moisture, and environmental 
 
 This guide explains how to set up the development environment and deploy the Smart Plant Care system to a Seeed Studio XIAO ESP32-S3 using PlatformIO.
 
----
-
 ### 1. Install Required Tools
+
+---
 
 #### Install Visual Studio Code
 Download and install Visual Studio Code:
@@ -51,9 +51,9 @@ https://code.visualstudio.com/
 
 PlatformIO manages the ESP32 toolchain, libraries, and firmware uploads.
 
----
-
 ### 2. Project Configuration
+
+---
 
 Your project must contain a **`platformio.ini`** file in the root directory.  
 This file defines the board configuration and required libraries.
@@ -84,9 +84,9 @@ lib_deps =
 ```
 ### 3. Hardware Wiring
 
-Connect the system components to the **XIAO ESP32-S3** as described below.
-
 ---
+
+Connect the system components to the **XIAO ESP32-S3** as described below.
 
 #### I2C Devices
 
@@ -132,6 +132,9 @@ Seeed Grove MOSFET or Pump Driver
 The **SIG pin** controls the watering pump (on/off).
 
 ### 4. Wi-Fi Configuration
+
+---
+
 Create a file named:
 ```txt
 include/secrets.h
@@ -144,6 +147,8 @@ Add your Wi-Fi credentials:
 Keeping credentials in this file prevents them from being committed to version control.
 
 ### 5. Build & Upload Firmware
+
+---
 
 #### Connect the Board
 Plug the `XIAO ESP32-S3` into your computer using a USB-C cable.
@@ -167,7 +172,7 @@ Click the **plug icon** to open the **Serial Monitor**.
 - Synchronize the time using `NTP`
 - Begin monitoring sensors and controlling plant watering
 
-# Useful Websites
+## Useful Websites
 
 ### Hardware & Sensors
 * [XIAO ESP32-S3 Getting Started](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)
@@ -194,7 +199,7 @@ Click the **plug icon** to open the **Serial Monitor**.
 * [GeeksforGeeks C++ Programming](https://www.geeksforgeeks.org/cpp/c-plus-plus/)
 * *C++ For Everyone 2nd Edition* By Cay Horstmann.
 
-# Future Work
+## Future Work
 * **Dynamic Calibration:** Implement a UI-based calibration routine to set "Dry" and "Wet" points via the encoder.
 * **WiFi Manager:** Replace hardcoded credentials with an Access Point (AP) mode for dynamic configuration.
 * **Historical Logging:** Log sensor data over time to an SD card for long-term trend analysis.
